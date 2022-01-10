@@ -10,9 +10,10 @@ LOG = logging.getLogger(__name__)
 
 class GolmiBot:
     sio = socketio.Client(logger=True)
+    golmi_sio = socketio.Client(logger=True)
     task_id = None
 
-    def __init__(self, token, user, host, port):
+    def __init__(self, token, user, host, port, golmi_host, golmi_port):
         self.token = token
         self.user = user
 
@@ -20,8 +21,11 @@ class GolmiBot:
         if port is not None:
             self.uri += f":{port}"
         self.uri += "/slurk/api"
-
         LOG.info(f"Running golmibot on {self.uri} with token {self.token}")
+
+        self.golmi_uri = f"{golmi_host}:{golmi_port}"
+        self.golmi_uri += "/pentomino_game"
+
         # register all event handlers
         self.register_callbacks()
 
@@ -31,6 +35,12 @@ class GolmiBot:
             self.uri,
             headers={"Authorization": f"Bearer {self.token}", "user": self.user},
             namespaces="/",
+        )
+        #TODO where to put pw?
+        print(self.golmi_uri)
+        self.golmi_sio.connect(
+            self.golmi_uri,
+            auth={"password": "GiveMeTheBigBluePasswordOnTheLeft"}
         )
         # wait until the connection with the server ends
         self.sio.wait()
@@ -60,14 +70,23 @@ class GolmiBot:
                     headers={"Authorization": f"Bearer {self.token}"}
                 )
                 if users.ok:
+                    # create a new Golmi task room
+                    #TODO: how to pass custom game parameters?
+                    #self.golmi_sio.emit("add_game_room", {"room_id": room_id})
                     # emit to each user their Golmi connection info
-                    for user in users.json():
+                    users = users.json()
+                    print(users)
+                    for user in users:
+                        print(user["id"])
                         if user["id"] != self.user:
                             permissions = requests.get(
                                 f"{self.uri}/permissions/{user['id']}",
                                 headers={"Authorization": f"Bearer {self.token}"}
                             )
                             permissions = permissions.json()
+                            # TODO: Sometimes the golmi role is null for some reason?
+                            print(permissions["golmi_role"])
+
                             credentials = {"room_id": room_id,
                                            "role": permissions["golmi_role"]}
                             self.sio.emit(
@@ -96,9 +115,14 @@ if __name__ == "__main__":
         user = {"default": os.environ["SLURK_USER"]}
     else:
         user = {"required": True}
+    if "SLURK_GOLMI_PORT" in os.environ:
+        golmi_port = {"default": os.environ["SLURK_GOLMI_PORT"]}
+    else:
+        golmi_port = {"required": True}
     host = {"default": os.environ.get("SLURK_HOST", "http://localhost")}
     port = {"default": os.environ.get("SLURK_PORT")}
     task_id = {"default": os.environ.get("GOLMI_TASK_ID")}
+    golmi_host = {"default": os.environ.get("SLURK_GOLMI_URL", "http://localhost")}
 
     # register commandline arguments
     parser.add_argument(
@@ -110,10 +134,19 @@ if __name__ == "__main__":
     )
     parser.add_argument("-p", "--port", type=int, help="port of chat server", **port)
     parser.add_argument("--task_id", type=int, help="task to join", **task_id)
+    parser.add_argument(
+        "-G", "--golmi_host", help="full URL (protocol, hostname) of Golmi server, "
+                                   "can be same as chat server", **golmi_host
+    )
+    parser.add_argument(
+        "-g", "--golmi_port", type=int, help="port of Golmi server",**golmi_port
+    )
     args = parser.parse_args()
 
     # create bot instance
-    golmi_bot = GolmiBot(args.token, args.user, args.host, args.port)
+    golmi_bot = GolmiBot(
+        args.token, args.user, args.host, args.port, args.golmi_host, args.golmi_port
+    )
     golmi_bot.task_id = args.task_id
     # connect to chat server
     golmi_bot.run()
