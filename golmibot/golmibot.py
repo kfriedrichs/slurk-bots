@@ -7,8 +7,13 @@ import socketio
 
 LOG = logging.getLogger(__name__)
 
+#TODO: need to delete rooms again
+
 
 class GolmiBot:
+    """
+    Helps set up a Golmi game within slurk.
+    """
     sio = socketio.Client(logger=True)
     golmi_sio = socketio.Client(logger=True)
     task_id = None
@@ -71,21 +76,38 @@ class GolmiBot:
                 )
                 if users.ok:
                     # create a new Golmi task room
-                    #TODO: how to pass custom game parameters?
+                    # TODO: Here, Golmibot should set parameters for the Golmi
+                    # game that is being created, e.g., a room_id, a game config,
+                    # (once implemented on Golmi) a game goal, etc.
                     #self.golmi_sio.emit("add_game_room", {"room_id": room_id})
                     # emit to each user their Golmi connection info
                     users = users.json()
-                    print(users)
                     for user in users:
-                        print(user["id"])
                         if user["id"] != self.user:
+                            # TODO: permission_id != user_id.
+                            # To get permissions of a specific user, the
+                            # token is needed. The user knows their token, but
+                            # golmibot does not. The user does not have API
+                            # permissions so they can't query their permissions
+                            # themselves.
+                            # The user does not know Golmibot's user id, so they
+                            # can't send the token to Golmibot for the bot to
+                            # do the query.
+
+                            # Solutions:
+                            # a) 3-way conversation between bot and
+                            # clients: Golmibot sends its own session id, clients
+                            # send their token, Golmibot queries permissions and
+                            # sends role to clients
+                            # b) Kill golmibot. Update slurk code for the server
+                            # to send the role. The room number can be inferred
+                            # by clients from the "status" event
+
                             permissions = requests.get(
                                 f"{self.uri}/permissions/{user['id']}",
                                 headers={"Authorization": f"Bearer {self.token}"}
                             )
                             permissions = permissions.json()
-                            # TODO: Sometimes the golmi role is null for some reason?
-                            print(permissions["golmi_role"])
 
                             credentials = {"room_id": room_id,
                                            "role": permissions["golmi_role"]}
@@ -96,7 +118,6 @@ class GolmiBot:
 
                 else:
                     LOG.error(f"Could not get users in room {room_id}: {response.status_code}")
-
 
 
 if __name__ == "__main__":
