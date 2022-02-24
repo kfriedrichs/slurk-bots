@@ -41,8 +41,6 @@ class GolmiBot:
             headers={"Authorization": f"Bearer {self.token}", "user": self.user},
             namespaces="/",
         )
-        #TODO where to put pw?
-        print(self.golmi_uri)
         self.golmi_sio.connect(
             self.golmi_uri,
             auth={"password": "GiveMeTheBigBluePasswordOnTheLeft"}
@@ -59,7 +57,6 @@ class GolmiBot:
         def new_task_room(data):
             room_id = data["room"]
             task_id = data["task"]
-            # do I need to join the room?
             if self.task_id is None or task_id == self.task_id:
                 response = requests.post(
                     f"{self.uri}/users/{self.user}/rooms/{room_id}",
